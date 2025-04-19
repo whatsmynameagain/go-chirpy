@@ -6,15 +6,24 @@ import (
 )
 
 func main() {
+
+	const rootDir = "."
+	const port = "8080"
+
 	newMux := http.NewServeMux()
-	serverStruct := http.Server{
+	serverStruct := &http.Server{
 		Handler: newMux,
-		Addr:    ":8080",
+		Addr:    ":" + port,
 	}
 
+	newMux.Handle("/", http.FileServer(http.Dir(rootDir)))
+
+	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err := serverStruct.ListenAndServe()
-	// error checking because why not
 	if err != nil {
-		log.Fatalf("error serving")
+		log.Fatal("error serving")
+		log.Fatal(err)
 	}
+	// another option is doing:
+	// log.Fatal(serverStruct.ListenAndServe())
 }
