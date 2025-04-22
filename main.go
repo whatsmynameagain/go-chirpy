@@ -7,7 +7,7 @@ import (
 
 func main() {
 
-	const rootDir = "/app/" // ?
+	const rootDir = "./"
 	const port = "8080"
 
 	newMux := http.NewServeMux()
@@ -16,7 +16,8 @@ func main() {
 		Addr:    ":" + port,
 	}
 
-	newMux.Handle("/", http.FileServer(http.Dir(rootDir)))
+	fileServer := http.FileServer(http.Dir(rootDir))
+	newMux.Handle("/app/", http.StripPrefix("/app", fileServer))
 
 	newMux.HandleFunc("/healthz", readinessHandler)
 
