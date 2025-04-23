@@ -23,11 +23,11 @@ func main() {
 	fileServer := http.FileServer(http.Dir(rootDir))
 	newMux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", fileServer)))
 
-	newMux.HandleFunc("/metrics", apiCfg.requestCountHandler)
+	newMux.HandleFunc("GET /metrics", apiCfg.requestCountHandler)
 
-	newMux.HandleFunc("/reset", apiCfg.resetCountHandler)
+	newMux.HandleFunc("POST /reset", apiCfg.resetCountHandler)
 
-	newMux.HandleFunc("/healthz", readinessHandler)
+	newMux.HandleFunc("GET /healthz", readinessHandler)
 
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err := serverStruct.ListenAndServe()
@@ -51,8 +51,6 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 }
 
-// still can't wrap my head around how this works
-// gotta come back to it later
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.fileserverHits.Add(1)
