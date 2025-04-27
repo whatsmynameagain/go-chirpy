@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync/atomic"
@@ -12,7 +14,9 @@ func main() {
 	const rootDir = "./"
 	const port = "8080"
 
-	apiCfg := &apiConfig{} // fileserverHits default is 0, no need to initialize
+	apiCfg := &apiConfig{
+		maxChirpLength: 140,
+	} // fileserverHits default is 0, no need to initialize
 
 	newMux := http.NewServeMux()
 	serverStruct := &http.Server{
@@ -28,6 +32,8 @@ func main() {
 	newMux.HandleFunc("POST /admin/reset", apiCfg.resetCountHandler)
 
 	newMux.HandleFunc("GET /api/healthz", readinessHandler)
+
+	newMux.HandleFunc("POST /api/validate_chirp", apiCfg.checkLengthHandler)
 
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err := serverStruct.ListenAndServe()
@@ -49,6 +55,7 @@ func readinessHandler(w http.ResponseWriter, _ *http.Request) {
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	maxChirpLength uint8 //test
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -76,4 +83,39 @@ func (cfg *apiConfig) resetCountHandler(w http.ResponseWriter, _ *http.Request) 
 	cfg.fileserverHits.Store(0)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Hits reset"))
+}
+
+// gonna keep adding the handler functions here for now
+func (cfg *apiConfig) checkLengthHandler(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	type chirp struct {
+		Body string `json:"body"`
+	}
+	type validResp struct {
+		Valid bool `json:"valid"`
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondWithError(w, 400, "could not read request")
+		return
+	}
+	chirpData := chirp{}
+	err = json.Unmarshal(data, &chirpData)
+	if err != nil {
+		respondWithError(w, 400, "could not unmarshal data")
+		return
+	}
+
+	if len(chirpData.Body) > int(cfg.maxChirpLength) {
+		msg := fmt.Sprintf("chirp is too long (max: %d)", cfg.maxChirpLength)
+		err = respondWithError(w, 400, msg)
+	} else {
+		err = respondWithJSON(w, 200, validResp{Valid: true})
+	}
+	if err != nil {
+		log.Fatal("failed to respond to chirp length validation request")
+	}
+
+	// UNTESTED
 }
