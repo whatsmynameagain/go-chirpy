@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -33,7 +34,7 @@ func main() {
 
 	newMux.HandleFunc("GET /api/healthz", readinessHandler)
 
-	newMux.HandleFunc("POST /api/validate_chirp", apiCfg.checkLengthHandler)
+	newMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
 
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err := serverStruct.ListenAndServe()
@@ -86,13 +87,13 @@ func (cfg *apiConfig) resetCountHandler(w http.ResponseWriter, _ *http.Request) 
 }
 
 // gonna keep adding the handler functions here for now
-func (cfg *apiConfig) checkLengthHandler(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	type chirp struct {
 		Body string `json:"body"`
 	}
-	type validResp struct {
-		Valid bool `json:"valid"`
+	type cleanedResp struct {
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	data, err := io.ReadAll(r.Body)
@@ -107,15 +108,35 @@ func (cfg *apiConfig) checkLengthHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// check length
 	if len(chirpData.Body) > int(cfg.maxChirpLength) {
 		msg := fmt.Sprintf("chirp is too long (max: %d)", cfg.maxChirpLength)
 		err = respondWithError(w, 400, msg)
-	} else {
-		err = respondWithJSON(w, 200, validResp{Valid: true})
-	}
-	if err != nil {
-		log.Fatal("failed to respond to chirp length validation request")
+		return
 	}
 
-	// UNTESTED
+	// check profanity
+	// to-do: move to its own function
+	profList := [3]string{"kerfuffle", "sharbert", "fornax"}
+	censor := "****"
+	words := strings.Split(chirpData.Body, " ")
+
+	for i, n := range words {
+		for _, p := range profList {
+			if strings.ToLower(n) == strings.ToLower(p) {
+				words[i] = censor
+			}
+		}
+	}
+
+	resp := cleanedResp{
+		CleanedBody: strings.Join(words, " "),
+	}
+
+	err = respondWithJSON(w, 200, resp)
+
+	if err != nil {
+		log.Fatal("failed to respond to chirp validation request")
+		return
+	}
 }
