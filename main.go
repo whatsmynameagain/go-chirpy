@@ -115,19 +115,7 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// check profanity
-	// to-do: move to its own function
-	profList := [3]string{"kerfuffle", "sharbert", "fornax"}
-	censor := "****"
-	words := strings.Split(chirpData.Body, " ")
-
-	for i, n := range words {
-		for _, p := range profList {
-			if strings.ToLower(n) == strings.ToLower(p) {
-				words[i] = censor
-			}
-		}
-	}
+	words := checkProfanity(chirpData.Body)
 
 	resp := cleanedResp{
 		CleanedBody: strings.Join(words, " "),
@@ -139,4 +127,19 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Reques
 		log.Fatal("failed to respond to chirp validation request")
 		return
 	}
+}
+
+func checkProfanity(txt string) []string {
+	profList := [3]string{"kerfuffle", "sharbert", "fornax"}
+	censor := "****"
+	words := strings.Split(txt, " ")
+
+	for i, n := range words {
+		for _, p := range profList {
+			if strings.ToLower(n) == strings.ToLower(p) {
+				words[i] = censor
+			}
+		}
+	}
+	return words
 }
