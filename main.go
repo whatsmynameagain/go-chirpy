@@ -1,22 +1,36 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
+
+	"github.com/whatsmynameagain/go-chirpy/internal/database"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func main() {
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatal("failed to open database")
+	}
 
 	const rootDir = "./"
 	const port = "8080"
 
 	apiCfg := &apiConfig{
 		maxChirpLength: 140,
+		dbQueries:      database.New(db),
 	} // fileserverHits default is 0, no need to initialize
 
 	newMux := http.NewServeMux()
@@ -37,7 +51,7 @@ func main() {
 	newMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
 
 	log.Printf("Serving %s on :%s\n", rootDir, port)
-	err := serverStruct.ListenAndServe()
+	err = serverStruct.ListenAndServe()
 	if err != nil {
 		log.Fatal("error serving")
 		log.Fatal(err)
@@ -57,6 +71,7 @@ func readinessHandler(w http.ResponseWriter, _ *http.Request) {
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	maxChirpLength uint8 //test
+	dbQueries      *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -134,7 +149,6 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Reques
 func checkProfanity(txt string, censor string, profanityList []string) []string {
 
 	words := strings.Split(txt, " ")
-
 	for i, n := range words {
 		for _, p := range profanityList {
 			if strings.ToLower(n) == strings.ToLower(p) {
