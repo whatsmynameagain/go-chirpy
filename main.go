@@ -50,6 +50,8 @@ func main() {
 
 	newMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
 
+	newMux.HandleFunc("POST /api/users", createUser)
+
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err = serverStruct.ListenAndServe()
 	if err != nil {
@@ -157,4 +159,8 @@ func checkProfanity(txt string, censor string, profanityList []string) []string 
 		}
 	}
 	return words
+}
+
+func createUser(w http.ResponseWriter, r *http.Request) {
+
 }
