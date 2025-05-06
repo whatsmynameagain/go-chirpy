@@ -10,9 +10,11 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/whatsmynameagain/go-chirpy/internal/database"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -44,13 +46,14 @@ func main() {
 
 	newMux.HandleFunc("GET /admin/metrics", apiCfg.requestCountHandler)
 
-	newMux.HandleFunc("POST /admin/reset", apiCfg.resetCountHandler)
+	// newMux.HandleFunc("POST /admin/reset", apiCfg.resetCountHandler)
+	newMux.HandleFunc("POST /admin/reset", apiCfg.resetUsers)
 
 	newMux.HandleFunc("GET /api/healthz", readinessHandler)
 
 	newMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
 
-	newMux.HandleFunc("POST /api/users", createUser)
+	newMux.HandleFunc("POST /api/users", apiCfg.createUser)
 
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err = serverStruct.ListenAndServe()
@@ -97,11 +100,13 @@ func (cfg *apiConfig) requestCountHandler(w http.ResponseWriter, _ *http.Request
 	w.Write([]byte(respText))
 }
 
+/*
 func (cfg *apiConfig) resetCountHandler(w http.ResponseWriter, _ *http.Request) {
 	cfg.fileserverHits.Store(0)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Hits reset"))
 }
+*/
 
 // gonna keep adding the handler functions here for now
 func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +166,55 @@ func checkProfanity(txt string, censor string, profanityList []string) []string 
 	return words
 }
 
-func createUser(w http.ResponseWriter, r *http.Request) {
+type User struct {
+	Id        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
 
+func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	type usrReq struct {
+		Email string `json:"email"`
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondWithError(w, 400, "could not read request")
+		return
+	}
+
+	usrData := usrReq{}
+	err = json.Unmarshal(data, &usrData)
+	if err != nil {
+		respondWithError(w, 400, "could not unmarshal data")
+		return
+	}
+
+	user, err := cfg.dbQueries.CreateUser(r.Context(), usrData.Email)
+	if err != nil {
+		respondWithError(w, 500, "could not create user")
+		return
+	}
+
+	resp := User{
+		Id:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	err = respondWithJSON(w, 201, resp)
+}
+
+func (cfg *apiConfig) resetUsers(w http.ResponseWriter, r *http.Request) {
+	platform := os.Getenv("PLATFORM")
+	if platform != "dev" {
+		respondWithError(w, 403, "forbidden")
+		return
+	}
+	cfg.dbQueries.ResetUsers(r.Context())
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Users reset"))
 }
