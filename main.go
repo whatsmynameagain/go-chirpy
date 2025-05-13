@@ -56,6 +56,7 @@ func main() {
 	newMux.HandleFunc("POST /api/users", apiCfg.createUser)
 
 	newMux.HandleFunc("POST /api/chirps", apiCfg.createChirp)
+	newMux.HandleFunc("GET /api/chirps", apiCfg.getAllChirps)
 
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err = serverStruct.ListenAndServe()
@@ -177,6 +178,14 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
 func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	type usrReq struct {
@@ -225,7 +234,7 @@ func (cfg *apiConfig) resetUsers(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	type chirp struct {
+	type chirpReq struct {
 		Body   string    `json:"body"`
 		UserID uuid.UUID `json:"user_id"`
 	}
@@ -239,7 +248,7 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, "could not read request")
 		return
 	}
-	chirpData := chirp{}
+	chirpData := chirpReq{}
 	err = json.Unmarshal(data, &chirpData)
 	if err != nil {
 		respondWithError(w, 400, "could not unmarshal data")
@@ -271,15 +280,7 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type respChirp struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Body      string    `json:"body"`
-		UserID    uuid.UUID `json:"user_id"`
-	}
-
-	responseChirp := respChirp{
+	responseChirp := Chirp{
 		ID:        newChirpDB.UserID,
 		CreatedAt: newChirpDB.CreatedAt,
 		UpdatedAt: newChirpDB.UpdatedAt,
@@ -290,4 +291,12 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println("error sending response: ", err)
 	}
+}
+
+func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
+
+	type ChirpList struct {
+		Chirps []Chirp `json:"chirps"`
+	}
+
 }
