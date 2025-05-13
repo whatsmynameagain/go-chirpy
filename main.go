@@ -51,9 +51,11 @@ func main() {
 
 	newMux.HandleFunc("GET /api/healthz", readinessHandler)
 
-	newMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
+	//newMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
 
 	newMux.HandleFunc("POST /api/users", apiCfg.createUser)
+
+	newMux.HandleFunc("POST /api/chirps", apiCfg.createChirp)
 
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err = serverStruct.ListenAndServe()
@@ -109,6 +111,7 @@ func (cfg *apiConfig) resetCountHandler(w http.ResponseWriter, _ *http.Request) 
 */
 
 // gonna keep adding the handler functions here for now
+/*
 func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	type chirp struct {
@@ -152,6 +155,7 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 }
+*/
 
 func checkProfanity(txt string, censor string, profanityList []string) []string {
 
@@ -217,4 +221,73 @@ func (cfg *apiConfig) resetUsers(w http.ResponseWriter, r *http.Request) {
 	cfg.dbQueries.ResetUsers(r.Context())
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Users reset"))
+}
+
+func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	type chirp struct {
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
+	}
+	type cleanedChirp struct {
+		CleanedBody string `json:"cleaned_body"`
+		UserId      string `json:"user_id"`
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondWithError(w, 400, "could not read request")
+		return
+	}
+	chirpData := chirp{}
+	err = json.Unmarshal(data, &chirpData)
+	if err != nil {
+		respondWithError(w, 400, "could not unmarshal data")
+		return
+	}
+
+	// check length
+	if len(chirpData.Body) > int(cfg.maxChirpLength) {
+		msg := fmt.Sprintf("chirp is too long (max: %d)", cfg.maxChirpLength)
+		err = respondWithError(w, 400, msg)
+		return
+	}
+
+	// check profanity
+	profList := []string{"kerfuffle", "sharbert", "fornax"}
+	censor := "****"
+	words := checkProfanity(chirpData.Body, censor, profList)
+
+	cleanedBody := strings.Join(words, " ")
+	newChirp := database.CreateChirpParams{
+		Body:   cleanedBody,
+		UserID: chirpData.UserID,
+	}
+
+	newChirpDB, err := cfg.dbQueries.CreateChirp(r.Context(), newChirp)
+	if err != nil {
+		fmt.Println("error creating chirp: ", err)
+		respondWithError(w, 500, "failed to create chirp")
+		return
+	}
+
+	type respChirp struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
+
+	responseChirp := respChirp{
+		ID:        newChirpDB.UserID,
+		CreatedAt: newChirpDB.CreatedAt,
+		UpdatedAt: newChirpDB.UpdatedAt,
+		Body:      newChirpDB.Body,
+		UserID:    newChirpDB.UserID,
+	}
+	err = respondWithJSON(w, 201, responseChirp)
+	if err != nil {
+		fmt.Println("error sending response: ", err)
+	}
 }
