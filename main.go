@@ -112,51 +112,6 @@ func (cfg *apiConfig) resetCountHandler(w http.ResponseWriter, _ *http.Request) 
 */
 
 // gonna keep adding the handler functions here for now
-/*
-func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	type chirp struct {
-		Body string `json:"body"`
-	}
-	type cleanedResp struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
-
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		respondWithError(w, 400, "could not read request")
-		return
-	}
-	chirpData := chirp{}
-	err = json.Unmarshal(data, &chirpData)
-	if err != nil {
-		respondWithError(w, 400, "could not unmarshal data")
-		return
-	}
-
-	// check length
-	if len(chirpData.Body) > int(cfg.maxChirpLength) {
-		msg := fmt.Sprintf("chirp is too long (max: %d)", cfg.maxChirpLength)
-		err = respondWithError(w, 400, msg)
-		return
-	}
-
-	profList := []string{"kerfuffle", "sharbert", "fornax"}
-	censor := "****"
-	words := checkProfanity(chirpData.Body, censor, profList)
-
-	resp := cleanedResp{
-		CleanedBody: strings.Join(words, " "),
-	}
-
-	err = respondWithJSON(w, 200, resp)
-
-	if err != nil {
-		log.Fatal("failed to respond to chirp validation request")
-		return
-	}
-}
-*/
 
 func checkProfanity(txt string, censor string, profanityList []string) []string {
 
