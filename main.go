@@ -250,8 +250,30 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 
-	type ChirpList struct {
-		Chirps []Chirp `json:"chirps"`
+	dbChirps, err := cfg.dbQueries.GetAllChirps(r.Context())
+	if err != nil {
+		respondWithError(w, 500, "failed to fetch chirps")
 	}
+	// if empty
+	if len(dbChirps) == 0 {
+		respondWithJSON(w, 200, []Chirp{})
+		return
+	}
+
+	// gotta do this because the database.Chirps struct doesn't have the JSON tags,
+	// making the JSON keys be capitalized by the marshalling
+	jsonChirps := []Chirp{}
+	for _, dbChirp := range dbChirps {
+		chirp := Chirp{
+			ID:        dbChirp.ID,
+			CreatedAt: dbChirp.CreatedAt,
+			UpdatedAt: dbChirp.UpdatedAt,
+			Body:      dbChirp.Body,
+			UserID:    dbChirp.UserID,
+		}
+		jsonChirps = append(jsonChirps, chirp)
+	}
+
+	respondWithJSON(w, 200, jsonChirps)
 
 }
