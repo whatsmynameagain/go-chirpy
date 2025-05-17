@@ -261,17 +261,9 @@ func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// gotta do this because the database.Chirps struct doesn't have the JSON tags,
-	// making the JSON keys be capitalized by the marshalling
 	jsonChirps := []Chirp{}
 	for _, dbChirp := range dbChirps {
-		chirp := Chirp{
-			ID:        dbChirp.ID,
-			CreatedAt: dbChirp.CreatedAt,
-			UpdatedAt: dbChirp.UpdatedAt,
-			Body:      dbChirp.Body,
-			UserID:    dbChirp.UserID,
-		}
+		chirp := dbChirpToJSONChirp(&dbChirp)
 		jsonChirps = append(jsonChirps, chirp)
 	}
 
@@ -294,5 +286,26 @@ func (cfg *apiConfig) getChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// if empty
+	if fetchedChirp == (database.Chirp{}) {
+		fmt.Println("no chirp found with provided uuid")
+		return
+	}
+
+	returnChirp := dbChirpToJSONChirp(&fetchedChirp)
+
 	// respond with chirp, remember to convert the database.Chirp into a json-tagged Chirp
+}
+
+func dbChirpToJSONChirp(chrp *database.Chirp) Chirp {
+	// gotta do this because the database.Chirps struct doesn't have the JSON tags,
+	// making the JSON keys be capitalized by the marshalling
+	return Chirp{
+		ID:        chrp.ID,
+		CreatedAt: chrp.CreatedAt,
+		UpdatedAt: chrp.UpdatedAt,
+		Body:      chrp.Body,
+		UserID:    chrp.UserID,
+	}
+
 }
