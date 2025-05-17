@@ -19,6 +19,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) error
 	return nil
 }
 
+// to-do: update this to include the error message
 func respondWithError(w http.ResponseWriter, code int, msg string) error {
 	return respondWithJSON(w, code, map[string]string{"error": msg})
 }

@@ -57,6 +57,7 @@ func main() {
 
 	newMux.HandleFunc("POST /api/chirps", apiCfg.createChirp)
 	newMux.HandleFunc("GET /api/chirps", apiCfg.getAllChirps)
+	newMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getChirp)
 
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err = serverStruct.ListenAndServe()
@@ -276,4 +277,22 @@ func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, 200, jsonChirps)
 
+}
+
+func (cfg *apiConfig) getChirp(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		// debug for now, replace with http response
+		fmt.Println("error converting endpoint uuid string into uuid: ", err)
+		return
+	}
+
+	fetchedChirp, err := cfg.dbQueries.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		// debug for now, replace with http response
+		fmt.Println("error fetching chirp from database: ", err)
+		return
+	}
+
+	// respond with chirp, remember to convert the database.Chirp into a json-tagged Chirp
 }
