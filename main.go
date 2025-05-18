@@ -119,7 +119,7 @@ func checkProfanity(txt string, censor string, profanityList []string) []string 
 	words := strings.Split(txt, " ")
 	for i, n := range words {
 		for _, p := range profanityList {
-			if strings.ToLower(n) == strings.ToLower(p) {
+			if strings.EqualFold(n, p) {
 				words[i] = censor
 			}
 		}
@@ -175,6 +175,9 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = respondWithJSON(w, 201, resp)
+	if err != nil {
+		fmt.Println("error responding: ", err)
+	}
 }
 
 func (cfg *apiConfig) resetUsers(w http.ResponseWriter, r *http.Request) {
@@ -194,10 +197,6 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		Body   string    `json:"body"`
 		UserID uuid.UUID `json:"user_id"`
 	}
-	type cleanedChirp struct {
-		CleanedBody string `json:"cleaned_body"`
-		UserId      string `json:"user_id"`
-	}
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -215,6 +214,9 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	if len(chirpData.Body) > int(cfg.maxChirpLength) {
 		msg := fmt.Sprintf("chirp is too long (max: %d)", cfg.maxChirpLength)
 		err = respondWithError(w, 400, msg)
+		if err != nil {
+			fmt.Println("error responding: ", err)
+		}
 		return
 	}
 
@@ -293,7 +295,10 @@ func (cfg *apiConfig) getChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	returnChirp := dbChirpToJSONChirp(&fetchedChirp)
-	respondWithJSON(w, 200, returnChirp)
+	err = respondWithJSON(w, 200, returnChirp)
+	if err != nil {
+		fmt.Println("error responding: ", err)
+	}
 
 }
 
