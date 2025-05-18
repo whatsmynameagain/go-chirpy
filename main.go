@@ -237,7 +237,7 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseChirp := Chirp{
-		ID:        newChirpDB.UserID,
+		ID:        newChirpDB.ID,
 		CreatedAt: newChirpDB.CreatedAt,
 		UpdatedAt: newChirpDB.UpdatedAt,
 		Body:      newChirpDB.Body,
@@ -288,13 +288,13 @@ func (cfg *apiConfig) getChirp(w http.ResponseWriter, r *http.Request) {
 
 	// if empty
 	if fetchedChirp == (database.Chirp{}) {
-		fmt.Println("no chirp found with provided uuid")
+		respondWithError(w, 404, "no chirp found with the requested ID")
 		return
 	}
 
 	returnChirp := dbChirpToJSONChirp(&fetchedChirp)
+	respondWithJSON(w, 200, returnChirp)
 
-	// respond with chirp, remember to convert the database.Chirp into a json-tagged Chirp
 }
 
 func dbChirpToJSONChirp(chrp *database.Chirp) Chirp {
