@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/whatsmynameagain/go-chirpy/internal/auth"
 	"github.com/whatsmynameagain/go-chirpy/internal/database"
 
 	"github.com/google/uuid"
@@ -132,6 +133,7 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Password  string    `json:"password"`
 }
 
 type Chirp struct {
@@ -145,7 +147,8 @@ type Chirp struct {
 func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	type usrReq struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	data, err := io.ReadAll(r.Body)
@@ -161,7 +164,17 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := cfg.dbQueries.CreateUser(r.Context(), usrData.Email)
+	hashed_pw, err := auth.HashPassword(usrData.Password)
+	if err != nil {
+		fmt.Printf("Error hashing password: ", err)
+	}
+
+	usrParam := database.CreateUserParams{
+		Email:          usrData.Email,
+		HashedPassword: hashed_pw,
+	}
+
+	user, err := cfg.dbQueries.CreateUser(r.Context(), usrParam)
 	if err != nil {
 		respondWithError(w, 500, "could not create user")
 		return
@@ -172,6 +185,8 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		// do not include pw in the response
+		// Password: 	user.HashedPassword,
 	}
 
 	err = respondWithJSON(w, 201, resp)
