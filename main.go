@@ -60,6 +60,8 @@ func main() {
 	newMux.HandleFunc("GET /api/chirps", apiCfg.getAllChirps)
 	newMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getChirp)
 
+	newMux.HandleFunc("POST /api/login", apiCfg.loginHandler)
+
 	log.Printf("Serving %s on :%s\n", rootDir, port)
 	err = serverStruct.ListenAndServe()
 	if err != nil {
@@ -133,7 +135,7 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
-	Password  string    `json:"password"`
+	Password  string    `json:"password,omitempty"`
 }
 
 type Chirp struct {
@@ -166,7 +168,7 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 
 	hashed_pw, err := auth.HashPassword(usrData.Password)
 	if err != nil {
-		fmt.Printf("Error hashing password: ", err)
+		fmt.Println("Error hashing password: ", err)
 	}
 
 	usrParam := database.CreateUserParams{
@@ -176,6 +178,7 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 
 	user, err := cfg.dbQueries.CreateUser(r.Context(), usrParam)
 	if err != nil {
+		fmt.Println("error: ", err)
 		respondWithError(w, 500, "could not create user")
 		return
 	}
@@ -328,4 +331,43 @@ func dbChirpToJSONChirp(chrp *database.Chirp) Chirp {
 		UserID:    chrp.UserID,
 	}
 
+}
+
+func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
+	type loginReq struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondWithError(w, 400, "could not read request")
+		return
+	}
+	userLogin := loginReq{}
+	err = json.Unmarshal(data, &userLogin)
+	if err != nil {
+		respondWithError(w, 400, "could not unmarshal data")
+		return
+	}
+	// request email and password validation goes here
+	// (e.g. valid email, pw length)
+
+	userInfo, err := cfg.dbQueries.GetUserByEmail(r.Context(), userLogin.Email)
+	if err != nil {
+		respondWithError(w, 401, "incorrect user or password")
+		return
+	}
+
+	if auth.CheckPasswordHash(userInfo.HashedPassword, userLogin.Password) != nil {
+		respondWithError(w, 401, "incorrect user or password")
+		return
+	}
+
+	respondWithJSON(w, 200, User{
+		Id:        userInfo.ID,
+		CreatedAt: userInfo.CreatedAt,
+		UpdatedAt: userInfo.UpdatedAt,
+		Email:     userInfo.Email,
+	})
 }
