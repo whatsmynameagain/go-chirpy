@@ -23,11 +23,11 @@ func CheckPasswordHash(hash, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }
 
-func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
+type CustomClaims struct {
+	jwt.RegisteredClaims
+}
 
-	type CustomClaims struct {
-		jwt.RegisteredClaims
-	}
+func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
 
 	claims := CustomClaims{
 		jwt.RegisteredClaims{
@@ -49,5 +49,21 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 
 func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 
-	return uuid.UUID{}, nil
+	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return tokenSecret, nil
+	})
+
+	if err != nil {
+		log.Fatal(err)
+		return uuid.UUID{}, fmt.Errorf("error parsing claims")
+	} else if claims, ok := token.Claims.(*CustomClaims); ok {
+		userUUID, err := uuid.Parse(claims.Subject)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return userUUID, nil
+	} else {
+		return uuid.UUID{}, fmt.Errorf("unknown claims type, cannot parse")
+	}
+
 }
