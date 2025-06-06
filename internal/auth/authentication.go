@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
-	"log"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -11,11 +13,10 @@ import (
 )
 
 func HashPassword(password string) (string, error) {
-	hashed, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", fmt.Errorf("error hashing password: %v", err)
+		return "", fmt.Errorf("error hashing password: %w", err)
 	}
-
 	return string(hashed), nil
 }
 
@@ -28,7 +29,6 @@ type CustomClaims struct {
 }
 
 func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
-
 	claims := CustomClaims{
 		jwt.RegisteredClaims{
 			Issuer:    "chirpy",
@@ -39,31 +39,58 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedString, err := token.SignedString(tokenSecret)
+	signedString, err := token.SignedString([]byte(tokenSecret))
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("failed to sign token: %w", err)
 	}
 
 	return signedString, nil
 }
 
 func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
-
-	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return tokenSecret, nil
-	})
-
-	if err != nil {
-		log.Fatal(err)
-		return uuid.UUID{}, fmt.Errorf("error parsing claims")
-	} else if claims, ok := token.Claims.(*CustomClaims); ok {
-		userUUID, err := uuid.Parse(claims.Subject)
-		if err != nil {
-			log.Fatal(err)
-		}
-		return userUUID, nil
-	} else {
-		return uuid.UUID{}, fmt.Errorf("unknown claims type, cannot parse")
+	// Validate JWT format
+	parts := strings.Split(tokenString, ".")
+	if len(parts) != 3 {
+		return uuid.Nil, fmt.Errorf("invalid JWT: must have 3 parts")
 	}
 
+	// Parse token
+	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(tokenSecret), nil
+	})
+	if err != nil {
+		// Debug header on error
+		header, decodeErr := base64.RawURLEncoding.DecodeString(parts[0])
+		if decodeErr != nil {
+			return uuid.Nil, fmt.Errorf("failed to decode header: %w", err)
+		}
+		return uuid.Nil, fmt.Errorf("failed to parse token: %w, header: %s", err, string(header))
+	}
+
+	// Validate claims and token
+	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+		userID, err := claims.GetSubject()
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("invalid subject: %w", err)
+		}
+
+		issuer, err := claims.GetIssuer()
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("invalid issuer: %w", err)
+		}
+		if issuer != "chirpy" {
+			return uuid.Nil, errors.New("invalid issuer")
+		}
+
+		userUUID, err := uuid.Parse(userID)
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("invalid user id: %w", err)
+		}
+		return userUUID, nil
+	}
+
+	return uuid.Nil, errors.New("invalid claims or token")
 }
