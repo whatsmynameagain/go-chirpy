@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -93,4 +94,16 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 
 	return uuid.Nil, errors.New("invalid claims or token")
+}
+
+// untested
+func GetBearerToken(headers http.Header) (string, error) {
+	auth_header := headers.Get("Authorization")
+	if auth_header == "" {
+		return "", fmt.Errorf("no authorizaton header found")
+	}
+
+	token_string := strings.Split(auth_header, " ")[1]
+
+	return token_string, nil
 }
