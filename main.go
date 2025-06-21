@@ -23,6 +23,7 @@ import (
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
+	env_secret := os.Getenv("SECRET")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal("failed to open database")
@@ -34,6 +35,7 @@ func main() {
 	apiCfg := &apiConfig{
 		maxChirpLength: 140,
 		dbQueries:      database.New(db),
+		secret:         env_secret,
 	} // fileserverHits default is 0, no need to initialize
 
 	newMux := http.NewServeMux()
@@ -84,6 +86,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	maxChirpLength uint8 //test
 	dbQueries      *database.Queries
+	secret         string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
