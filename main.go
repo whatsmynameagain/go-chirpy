@@ -139,6 +139,7 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
 	Password  string    `json:"password,omitempty"`
+	Token     string    `json:"token"`
 }
 
 type Chirp struct {
@@ -338,8 +339,9 @@ func dbChirpToJSONChirp(chrp *database.Chirp) Chirp {
 
 func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	type loginReq struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
+		Password         string `json:"password"`
+		Email            string `json:"email"`
+		ExpiresInSeconds *int   `json:"expires_in_seconds,omitempty"`
 	}
 
 	data, err := io.ReadAll(r.Body)
@@ -355,6 +357,16 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// request email and password validation goes here
 	// (e.g. valid email, pw length)
+	expirationTime := 0
+	if userLogin.ExpiresInSeconds == nil {
+		expirationTime = 3600
+	} else {
+		if *userLogin.ExpiresInSeconds > 3600 {
+			expirationTime = 3600
+		} else {
+			expirationTime = *userLogin.ExpiresInSeconds
+		}
+	}
 
 	userInfo, err := cfg.dbQueries.GetUserByEmail(r.Context(), userLogin.Email)
 	if err != nil {
@@ -367,10 +379,18 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
+
+	new_token, err := auth.MakeJWT(userInfo.ID, cfg.secret, time.Duration(expirationTime)*time.Second)
+	if err != nil {
+		fmt.Printf("error creating jwt: ", err)
+	}
+
 	respondWithJSON(w, 200, User{
 		Id:        userInfo.ID,
 		CreatedAt: userInfo.CreatedAt,
 		UpdatedAt: userInfo.UpdatedAt,
 		Email:     userInfo.Email,
+		Token:     new_token,
 	})
 }
