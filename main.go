@@ -379,8 +379,6 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
-
 	new_token, err := auth.MakeJWT(userInfo.ID, cfg.secret, time.Duration(expirationTime)*time.Second)
 	if err != nil {
 		fmt.Printf("error creating jwt: ", err)
