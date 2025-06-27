@@ -225,6 +225,18 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, 400, "could not read request")
 		return
 	}
+
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "could not read JWT")
+		return
+	}
+
+	userUUID, err := auth.ValidateJWT(tokenString, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "could not validate JWT")
+	}
+
 	chirpData := chirpReq{}
 	err = json.Unmarshal(data, &chirpData)
 	if err != nil {
@@ -250,7 +262,7 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	cleanedBody := strings.Join(words, " ")
 	newChirp := database.CreateChirpParams{
 		Body:   cleanedBody,
-		UserID: chirpData.UserID,
+		UserID: userUUID,
 	}
 
 	newChirpDB, err := cfg.dbQueries.CreateChirp(r.Context(), newChirp)
@@ -383,7 +395,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	new_token, err := auth.MakeJWT(userInfo.ID, cfg.secret, time.Duration(expirationTime)*time.Second)
 	if err != nil {
-		fmt.Printf("error creating jwt: ", err)
+		fmt.Println("error creating jwt: ", err)
 	}
 
 	respondWithJSON(w, 200, User{
